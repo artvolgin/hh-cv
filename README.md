@@ -12,6 +12,6 @@ Data from this project is not available due to commercial restrictions.
 * `hh-cv-coeffs.Rmd` - Error bar plots for coefficients.
 * `hh-cv-eda.Rmd` - EDA plots.
 
-### Outputs
+### Output
 * `output/hh-cv-working-paper.pdf` - Working paper.
 * `output/hh-cv-april-conference.pdf` - Presentation from the April Conference at HSE.
