@@ -1,6 +1,6 @@
 ## Skills demanded by the Labor Market and supplied by Russian universities: An investigation
 
-The World Bank collaboration with HeadHunter. Evaluation of university graduates' skills in Russia using large sample of CVs data.
+The World Bank collaboration with HeadHunter. Evaluation of university graduates' skills in Russia using a large sample of CV data.
 
 Data from this project is not available due to commercial restrictions.
 
