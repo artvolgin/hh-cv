@@ -1,0 +1,187 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+<style>
+body { font-size: 12px; }
+</style>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(stargazer)
+```
+
+```{r Load the data, echo=FALSE}
+
+setwd("/data")
+
+models_list <- readRDS("models_list.rds")
+
+# Select only Soft skills
+soft_skills_list <- c("skills_social_teamwork", "skills_social_negotiation", "skills_training",
+                      "skills_social_presentation", "skills_people_managment", "skills_project_managment")
+
+models_list_softskills <- list()
+models_list_hardskills <- list()
+j <- 1
+k <- 1
+for (i in 1:15){
+  
+  if (colnames(models_list[[i]]@frame)[1] %in% soft_skills_list){
+    models_list_softskills[[j]] <- models_list[[i]]
+    j <- j + 1
+    
+  } else {
+    models_list_hardskills[[k]] <- models_list[[i]]
+    k <- k + 1
+  }
+  
+}
+
+```
+
+
+```{r Print coefficients for the Soft skills, results = "asis"}
+
+setwd("/data")
+
+stargazer(models_list_softskills[[1]],
+          models_list_softskills[[2]],
+          models_list_softskills[[3]],
+          models_list_softskills[[4]],
+          models_list_softskills[[5]],
+          models_list_softskills[[6]],
+          type="html",
+          
+          apply.coef = exp,
+          t.auto=F,
+          p.auto=F,
+          
+          covariate.labels = c("Education level - Higher",
+                               "Education level - Bachelor",
+                               "Education level - Master",
+                               "Education level - Candidate",
+
+                               "Faculty category - Agricultural science",
+                               "Faculty category - Art and Culture",
+                               "Faculty category - Education",
+                               "Faculty category - Engineering and Technology",
+                               "Faculty category - Health and Medicine",
+                               "Faculty category - Humanities",
+                               "Faculty category - Mathematics and Natural science",
+                               
+                               "University specialization - Agrarian",
+                               "University specialization - Art",
+                               "University specialization - Medical",
+                               "University specialization - Pedagogical",
+                               "University specialization - Socio-economic",
+                               "University specialization - Specialized",
+                               "University specialization - Technical",
+                               "University specialization - Sport"
+                               ),
+
+          keep=c("education_level", "faculty_category", "specialization_type"),
+          # dep.var.caption = "",
+          dep.var.labels.include = T,
+          df = F,
+          ci = F,
+          intercept.bottom = F,
+          header = F)
+
+```
+
+
+
+```{r Print coefficients for the Hard skills - part 1, results = "asis"}
+
+setwd("/data")
+stargazer(models_list_hardskills[[1]],
+          models_list_hardskills[[2]],
+          models_list_hardskills[[3]],
+          models_list_hardskills[[4]],
+          models_list_hardskills[[5]],
+          type="html",
+          # type="text",
+                    
+          apply.coef = exp,
+          t.auto=F,
+          p.auto=F,
+
+          covariate.labels = c("Education level - Higher",
+                               "Education level - Bachelor",
+                               "Education level - Master",
+                               "Education level - Candidate",
+
+                               "Faculty category - Agricultural science",
+                               "Faculty category - Art and Culture",
+                               "Faculty category - Education",
+                               "Faculty category - Engineering and Technology",
+                               "Faculty category - Health and Medicine",
+                               "Faculty category - Humanities",
+                               "Faculty category - Mathematics and Natural science",
+                               
+                               "University specialization - Agrarian",
+                               "University specialization - Art",
+                               "University specialization - Medical",
+                               "University specialization - Pedagogical",
+                               "University specialization - Socio-economic",
+                               "University specialization - Specialized",
+                               "University specialization - Technical",
+                               "University specialization - Sport"
+                               ),
+
+          keep=c("education_level", "faculty_category", "specialization_type"),
+          dep.var.labels.include = T,
+          df = F,
+          ci = F,
+          intercept.bottom = F,
+          header = F)
+```
+
+
+```{r Print coefficients for the Hard skills - part 2, results="asis"}
+
+setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/YandexDisk/WB/jobtrends/data/headhunter/cv"))
+stargazer(models_list_hardskills[[6]],
+          models_list_hardskills[[7]],
+          models_list_hardskills[[8]],
+          models_list_hardskills[[9]],
+          type="html",
+          apply.coef = exp,
+          t.auto=F,
+          p.auto=F,
+          covariate.labels = c("Education level - Higher",
+                               "Education level - Bachelor",
+                               "Education level - Master",
+                               "Education level - Candidate",
+
+                               "Faculty category - Agricultural science",
+                               "Faculty category - Art and Culture",
+                               "Faculty category - Education",
+                               "Faculty category - Engineering and Technology",
+                               "Faculty category - Health and Medicine",
+                               "Faculty category - Humanities",
+                               "Faculty category - Mathematics and Natural science",
+                               
+                               "University specialization - Agrarian",
+                               "University specialization - Art",
+                               "University specialization - Medical",
+                               "University specialization - Pedagogical",
+                               "University specialization - Socio-economic",
+                               "University specialization - Specialized",
+                               "University specialization - Technical",
+                               "University specialization - Sport"
+                               ),
+          keep=c("education_level", "faculty_category", "specialization_type"),
+          dep.var.labels.include = T,
+          df = F,
+          ci = F,
+          intercept.bottom = F,
+          header = F)
+
+```
+

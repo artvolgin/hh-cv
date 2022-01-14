@@ -1,0 +1,485 @@
+---
+title: "HH CV EDA"
+output: html_notebook
+---
+
+
+```{r Preprocessing}
+
+library(dplyr)
+library(lme4)
+library(performance)
+library(ggplot2)
+
+Sys.setlocale(locale = "Russian")
+setwd("/data")
+
+df_cv <- readRDS("df_cv.rds")
+
+```
+
+
+# Table 1
+```{r Socio-demographic table, fig.height=6, fig.width=8}
+
+df_cv$region_name_top <- ifelse(df_cv$region_name %in% names(head(sort(table(df_cv$region_name), decreasing=T), 10)),
+                                as.character(df_cv$region_name), "Other regions")
+
+table_socdem <- rbind(as.data.frame(table(df_cv$gender)),
+                      as.data.frame(table(df_cv$age_group)),
+                      as.data.frame(table(df_cv$education_level)),
+                      as.data.frame(sort(table(df_cv$region_name_top), decreasing=T)))
+colnames(table_socdem) <- c("Variable", "Number of resumes")
+table_socdem["Proportion of resumes"] <-  table_socdem$`Number of resumes` / nrow(df_cv)
+setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/YandexDisk/WB/jobtrends/data/headhunter/cv"))
+# rio::export(table_socdem, "table_socdem.xlsx")
+
+```
+
+
+
+# Plot 1.
+```{r Number of CVs by regions, fig.height=6, fig.width=8}
+
+# Compare with Rosstat's data?
+
+top20_regions <- rownames(head(sort(table(df_cv$region_name), decreasing=T), 20))
+
+# df_cv$region_name <- ifelse(df_cv$region_name %in% top20_regions, df_cv$region_name, "T")
+
+df_cv_top20 <- df_cv %>% filter(region_name %in% top20_regions)
+
+p1 <- df_cv_top20 %>%
+  ggplot(aes(y=reorder(region_name, table(region_name)[region_name]),
+             fill=factor(ifelse(region_name=="Moscow","Highlighted","Normal")))) + geom_bar() +
+  scale_fill_manual(name = "region_name", values=c("coral3","grey70")) + 
+  ggtitle("TOP-20 regions by resumes") +
+  ylab("Region name") + xlab('Resumes') +
+  xlim(0, 80000) + 
+  theme_classic() +
+  
+  theme(axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 12),
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        plot.title = element_text(size=20, face="bold", hjust=0.5),
+        legend.position= "none",
+        legend.title=element_blank(),
+        legend.text = element_text(size=14))
+p1
+
+(sum(df_cv$region_name == "Moscow") + sum(df_cv$region_name == "Saint Petersburg")) / nrow(df_cv)
+
+
+```
+
+
+# Table 1.
+```{r Number of CVs by regions comparison, fig.height=6, fig.width=8}
+
+setwd("/data")
+df_rosstat_regions <- rio::import("rosstat_regions.xls")
+df_rosstat_regions$region_name_hh
+df_regions <- df_cv %>% group_by(region_name_rus) %>% summarize(hh_resumes = n())
+df_regions <- df_regions %>% rename(region_name_hh=region_name_rus)
+df_regions <- df_regions %>% left_join(df_rosstat_regions)
+df_regions$workforce_in_2019 <- df_regions$workforce_1000_in_2019 * 1000
+df_regions$rate_rosstat_hh <- df_regions$workforce_in_2019 / df_regions$hh_resumes
+df_regions <- df_regions %>% arrange(rate_rosstat_hh)
+df_regions_show <- rbind(head(df_regions, 10), tail(df_regions, 10))
+
+df_regions_show$region_name_rus <- df_regions_show$region_name_hh
+df_region_names <- df_cv %>% dplyr::select(region_name, region_name_rus) %>% distinct()
+df_regions_show <- df_regions_show %>% left_join(df_region_names)
+
+df_regions_show <- df_regions_show %>% dplyr::select(region_name, workforce_in_2019, hh_resumes, rate_rosstat_hh)
+df_regions_show <- df_regions_show %>% rename("Region"=region_name,
+                           "Workforce in 2019, number of people, Rosstat"=workforce_in_2019,
+                           "Number of CVs, HeadHunter sample"=hh_resumes,
+                           "Rate between Rosstat and HeadHunter"=rate_rosstat_hh)
+writexl::write_xlsx(df_regions_show, "table_top_bottom_regions.xlsx")
+
+```
+
+
+# Plot 2.
+```{r Number of CVs by professional areas, fig.height=7, fig.width=10}
+
+df_cv$professional_area <- dplyr::recode(df_cv$professional_area, "Car buisness" = "Car business")
+
+p2 <- df_cv %>%
+  ggplot(aes(y=reorder(professional_area, table(professional_area)[professional_area]),
+             fill=factor(ifelse(professional_area=="Early career, Students","Highlighted","Normal")))) +
+  scale_fill_manual(name = "professional_area", values=c("coral3","gray70")) + 
+  geom_bar() +
+  # ggtitle("Professional areas by resumes") +
+  ylab("Professional area") + xlab('Resumes') +
+  xlim(0, 50000) + 
+  theme_classic() +
+  #theme(plot.title = element_text(size=18, face="bold", hjust=0.5),
+  #      legend.position="none")
+
+  theme(axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 12),
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        plot.title = element_text(size=20, face="bold", hjust=0.5),
+        legend.position= "none",
+        legend.title=element_blank(),
+        legend.text = element_text(size=14))
+
+p2
+
+
+
+```
+
+# Plot 3. Distribution of the expected salary
+```{r Distribution of the expected salary, fig.height=5, fig.width=5}
+
+p3 <- df_cv %>%
+  ggplot(aes(x = expected_salary)) + 
+  geom_histogram(colour='black', fill="coral3", binwidth = 10000) +
+  # scale_fill_identity()+
+  # ggtitle("Distribution of the expected salary") +
+  ylab("Resumes") + xlab('Expected salary (rub)') +
+  # scale_fill_manual(values = c("grey50","brown")) +
+  theme_classic() +
+  theme(plot.title = element_text(size=18, face="bold", hjust=0.5),
+        legend.position="none")
+p3
+
+```
+
+# Plot 4. Distribution of the experience
+```{r Distribution of the experience, fig.height=5, fig.width=5}
+
+p4 <- df_cv %>%
+  ggplot(aes(x = years_of_experience,  fill = "coral3")) +
+  geom_histogram(colour='black', binwidth = 0.5) +
+  scale_fill_identity()+
+  # ggtitle("Years of experience") +
+  ylab("Resumes") + xlab('Years of experience') +
+  theme_classic() +
+  theme(plot.title = element_text(size=18, face="bold", hjust=0.5),
+        legend.position="bottom")
+p4
+
+```
+
+
+# Plot 5.
+```{r Faculties, fig.height=7, fig.width=10}
+
+p5 <- df_cv %>%
+  ggplot(aes(y=reorder(faculty_category, table(faculty_category)[faculty_category]),
+             fill=factor(ifelse(faculty_category=="Social science","Highlighted","Normal")))) +
+  scale_fill_manual(name = "faculty_category", values=c("coral3","gray70")) + 
+  geom_bar() +
+  ggtitle("Faculties indicated in resumes") +
+  ylab("Faculty type") + xlab('Resumes') +
+  xlim(0, 150000) + 
+  theme_classic() +
+  theme(plot.title = element_text(size=18, face="bold", hjust=0.5),
+        axis.text.y = element_text(color = "black", size = 14),
+        axis.text.x = element_text(size = 12),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        legend.position="none")
+p5
+
+```
+
+```{r Comparison between hh and graduate.edu, faculties}
+
+# Statistics for university areas, 2013 graduates from graduate.edu.ru
+Sys.setlocale(locale = "Russian")
+setwd("/data")
+df_universities_areas <- rio::import("dataframe_universities_areas.xlsx")
+df_universities_areas <- df_universities_areas %>% group_by(area_code) %>% summarize(graduates_number = sum(graduates_number)) %>% ungroup()
+
+# Specialization names
+setwd("/data")
+specialization_names <- rio::import("specialization_names.xlsx")
+specialization_names <- specialization_names %>%
+  dplyr::mutate(area_code = substr(code, 1, 2)) %>%
+  distinct(area_code, .keep_all = TRUE) %>%
+  dplyr::select(area_code, group)
+
+# Merge two dataframes together
+df_universities_areas <- df_universities_areas %>% left_join(specialization_names) %>% filter(area_code != "00")
+
+# Fill the missings
+df_universities_areas[df_universities_areas$area_code == "30",]$group <- "ЗДРАВООХРАНЕНИЕ И МЕДИЦИНСКИЕ НАУКИ"
+df_universities_areas[df_universities_areas$area_code == "31",]$group <- "ЗДРАВООХРАНЕНИЕ И МЕДИЦИНСКИЕ НАУКИ"
+df_universities_areas[df_universities_areas$area_code == "32",]$group <- "ЗДРАВООХРАНЕНИЕ И МЕДИЦИНСКИЕ НАУКИ"
+df_universities_areas[df_universities_areas$area_code == "33",]$group <- "ЗДРАВООХРАНЕНИЕ И МЕДИЦИНСКИЕ НАУКИ"
+df_universities_areas[df_universities_areas$area_code == "55",]$group <- "ИСКУССТВО И КУЛЬТУРА"
+
+# Summarize by the largest groups
+df_universities_areas <- df_universities_areas %>% group_by(group) %>% summarize(graduates_number=sum(graduates_number)) %>% ungroup()
+
+# Rename to Russian
+df_universities_areas$group <- dplyr::recode(df_universities_areas$group,
+                                             "ГУМАНИТАРНЫЕ НАУКИ"="Humanities",
+                                             "ЗДРАВООХРАНЕНИЕ И МЕДИЦИНСКИЕ НАУКИ"="Health and Medicine",
+                                             "ИНЖЕНЕРНОЕ ДЕЛО, ТЕХНОЛОГИИ И ТЕХНИЧЕСКИЕ НАУКИ"="Engineering and Technology",
+                                             "ИСКУССТВО И КУЛЬТУРА"="Art and Culture",
+                                             "МАТЕМАТИЧЕСКИЕ И ЕСТЕСТВЕННЫЕ НАУКИ"="Mathematics and Natural science",
+                                             "НАУКИ ОБ ОБЩЕСТВЕ"="Social science",
+                                             "ОБРАЗОВАНИЕ И ПЕДАГОГИЧЕСКИЕ НАУКИ"="Education",
+                                             "СЕЛЬСКОЕ ХОЗЯЙСТВО И СЕЛЬСКОХОЗЯЙСТВЕННЫЕ НАУКИ"="Agricultural science")
+
+# Compare with HH
+hh_freq_faculty <- as.data.frame(table((df_cv %>% filter(end_date == "2013"))$faculty_category))
+freq_faculty <- hh_freq_faculty %>% rename(group=Var1, hh_freq=Freq)
+freq_faculty <- freq_faculty %>% left_join(df_universities_areas)
+freq_faculty$hh_freq <- freq_faculty$hh_freq / sum(freq_faculty$hh_freq)
+freq_faculty$graduates_number <- freq_faculty$graduates_number / sum(freq_faculty$graduates_number)
+freq_faculty <- freq_faculty %>% tidyr::pivot_longer(!group)
+freq_faculty$name <- as.factor(freq_faculty$name)
+freq_faculty$name <- relevel(freq_faculty$name, ref="hh_freq")
+
+```
+
+# Plot 6
+```{r Faculties (graduates.edu and HH), fig.height=7, fig.width=10}
+
+freq_faculty$name <- relevel(freq_faculty$name, ref="graduates_number")
+
+p6 <- freq_faculty %>%
+  ggplot(aes(reorder(factor(group), value), value, fill = name)) +
+  scale_fill_manual(name = "name", labels = c("gradute.edu.ru", "HeadHunter"), values=c("deepskyblue3", "coral3")) + 
+  geom_bar(stat="identity", position = "dodge") + 
+  coord_flip() + 
+  # ggtitle("Proportion of graduates in 2013 by faculties \n graduate.edu.ru and HeadHunter") +
+  xlab("Faculty type") + ylab('Proportion') +
+  theme_classic() +
+  theme(plot.title = element_text(size=18, face="bold", hjust=0.5),
+        axis.text.y = element_text(color = "black", size = 14),
+        axis.text.x = element_text(size = 12),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        legend.position= c(0.8, 0.2),
+        legend.title=element_blank(),
+        legend.text = element_text(size=14))
+p6
+
+```
+
+
+
+```{r Comparison between Number of graduate and their Salaries (2013-2016) from hh and graduate.edu, universities}
+
+Sys.setlocale(locale = "Russian")
+setwd("/data")
+
+df_universities <- rio::import("dataframe_universities_timeseries.xls")
+# Remove universities with missing years
+freq_uni_times <- as.data.frame(table(df_universities$name))
+freq_uni_times <- freq_uni_times %>% filter(Freq == 3)
+df_universities <- df_universities %>% filter(name %in% freq_uni_times$Var1)
+df_universities <- df_universities %>% dplyr::select(name, graduates_number, mean_salary)
+df_universities <- df_universities %>% group_by(name) %>% summarise(grad_graduates=sum(graduates_number), grad_salary=mean(mean_salary))
+df_universities <- df_universities %>% rename(university_name=name)
+
+df_cv_13_15 <- df_cv %>% filter((end_date == "2013" | end_date == "2014" | end_date == "2015") & expected_salary > 0)
+
+df_universities_hh <- df_cv_13_15 %>%
+  group_by(university_name) %>%
+  summarize(hh_graduates=n(),
+            hh_salary=mean(expected_salary)) %>%
+  filter(hh_graduates >= 30)
+
+df_universities <- df_universities %>% left_join(df_universities_hh)
+
+# Difference between HH and graduate.edu.ru salaries
+df_universities$salary_diff <- df_universities$grad_salary - df_universities$hh_salary
+
+```
+
+# Plot 7.
+```{r TOP-20 Universities by number of CV, fig.height=7, fig.width=14}
+
+top20_universities <- rownames(head(sort(table(df_cv$university_name), decreasing=T), 20))
+df_cv_top20 <- df_cv %>% filter(university_name %in% top20_universities)
+
+df_cv_top20$university_name <- dplyr::recode(df_cv_top20$university_name,
+  "Санкт-Петербургский государственный экономический университет"="Санкт-Петербургский государственный экономический университет (ФИНЭК, ИНЖЭКОН, СПбГУСЭ)")
+
+# Highlight top-6 universities
+top6_universities <- rownames(head(sort(table(df_cv_top20$university_name), decreasing=T), 6))
+df_cv_top20$university_top <- df_cv_top20$university_name %in% top6_universities
+
+
+p7 <- df_cv_top20 %>%
+  ggplot(aes(y=reorder(university_name, table(university_name)[university_name]),
+             fill=university_top)) + geom_bar() +
+  scale_fill_manual(name = "university_top", values=c("gray70","coral3")) + 
+  ggtitle("TOP-20 universites by number of resumes") +
+  ylab("University Name") + xlab('Resumes') +
+  xlim(0, 5000) + 
+  theme_classic() +
+  theme(plot.title = element_text(size=18, face="bold", hjust=1.6),
+        axis.text.y = element_text(size = 12),
+        legend.position="none")
+p7
+
+```
+
+# Plot 8.
+```{r Scatterplot: Universities by number of CV, fig.height=8, fig.width=10}
+
+p8 <- ggplot(df_universities, aes(x=log(grad_graduates), y=log(hh_graduates))) + 
+  geom_point(colour="coral3", alpha = 0.7, size=3) +
+  geom_smooth(method = lm, se = T, color = "darkgrey", size=0.5) +
+  xlim(6.8, 10.5) + 
+  labs(x = "Number of graduates, graduate.edu.ru (log scale)", y = "Number of graduates, HeadHunter (log scale)") + 
+  # ggtitle("Number of graduates from universities in 2013-2015 \n graduate.edu.ru and HeadHunter") + 
+  theme_classic() +
+  
+  theme(axis.text.y = element_text(size = 14),
+        axis.text.x = element_text(size = 14),
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        plot.title = element_text(size=20, face="bold", hjust=0.5))
+p8
+
+cor.test(log(df_universities$grad_graduates), log(df_universities$hh_graduates))
+
+```
+
+# Plot 9.
+```{r TOP-20 Universities by Expected salary, fig.height=7, fig.width=14}
+
+df_universities_20 <- df_universities %>%
+  filter(!is.na(hh_salary)) %>% arrange(-hh_salary) %>% head(20)
+# Highlight top-6 universities by salary
+top6_universities <- head(df_universities_20$university_name, 6)
+df_universities_20$university_top <- df_universities_20$university_name %in% top6_universities
+
+
+p9 <- df_universities_20 %>%
+  ggplot(aes(y=reorder(university_name, grad_salary),
+             x=grad_salary,
+             fill=university_top)) + geom_bar(stat="identity") +
+  scale_fill_manual(name = "university_top", values=c("gray70","coral3")) + 
+  ggtitle("TOP-20 universites by Expected salary") +
+  ylab("University Name") + xlab('Expected salary') +
+  xlim(0, 90000) + 
+  theme_classic() +
+  theme(plot.title = element_text(size=18, face="bold", hjust=1.5),
+        axis.text.y = element_text(size = 12),
+        legend.position="none")
+p9
+
+```
+
+
+# Plot 10.
+```{r Scatterplot: Universities by salary, fig.height=8, fig.width=10}
+
+options(scipen=999)
+p10 <- ggplot(df_universities, aes(x=grad_salary, y=hh_salary)) + 
+  geom_point(colour="coral3", alpha = 0.7, size=3) +
+  geom_abline(intercept = 0, slope = 1, linetype="dashed",  color = "gray30") + 
+  xlim(2e4, 10e4) + 
+  ylim(2e4, 10e4) + 
+  labs(x = "Average salary for university, graduate.edu.ru",
+       y = "Average expected salary for university, HeadHunter"
+       ) + 
+  # ggtitle("Salary of graduates from universities in 2013-2015 \n graduate.edu.ru and HeadHunter") + 
+  theme_classic() +
+  theme(axis.text.y = element_text(size = 14),
+        axis.text.x = element_text(size = 14),
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        plot.title = element_text(size=20, face="bold", hjust=0.5),
+        legend.position="bottom")
+p10
+
+
+```
+
+
+# Plot 11.
+```{r Skills distribution, fig.height=7, fig.width=10}
+
+# Indicate soft and hard skills
+df_cv_skills <- df_cv[colnames(df_cv)[startsWith(colnames(df_cv), "skills_")]]
+
+skills_count <- colSums(df_cv_skills) %>% data.frame()
+colnames(skills_count) <- "count"
+skills_count$skill_name <- rownames(skills_count)
+
+# Split by soft/hard skills
+skills_count$skill_type <- skills_count$skill_name %>% dplyr::recode(
+  "skills_social_teamwork"="Soft skills",
+  "skills_social_negotiation"="Soft skills",
+  "skills_training"="Soft skills",
+  "skills_social_presentation"="Soft skills",
+  "skills_analytical"="Hard skills",
+  "skills_people_managment"="Soft skills",
+  "skills_project_managment"="Soft skills",
+  "skills_computer_programming"="Hard skills",
+  "skills_financial"="Hard skills",
+  "skills_medical"="Hard skills",
+  "skills_legal"="Hard skills",
+  
+  "skills_computer_financial_administrative"="Hard skills",
+  "skills_smm"="Hard skills",
+  "skills_writing"="Hard skills",
+  "skills_computer_design_geo"="Hard skills")
+
+
+# Rename for plotting
+skills_count$skill_name <- skills_count$skill_name %>% dplyr::recode(
+  "skills_social_teamwork"="Teamwork and Leadership",
+  "skills_social_negotiation"="Negotiation",
+  "skills_training"="Teaching and Training",
+  "skills_social_presentation"="Presentation and Public speaking",
+  "skills_computer_specsoftware"="Software",
+  "skills_analytical"="Analytical",
+  "skills_people_managment"="People managment",
+  "skills_project_managment"="Project management",
+  "skills_computer_programming"="Programming",
+  "skills_financial"="Financial",
+  "skills_medical"="Medical-psychological",
+  "skills_legal"="Law",
+  
+  "skills_computer_financial_administrative"="Software for finance, management and analytics",
+  "skills_smm"="Social media marketing",
+  "skills_writing"="Writing",
+  "skills_computer_design_geo"="Software for design, architecture and planning"
+  
+  )
+
+# Ggplot graph
+p11 <- skills_count %>%
+  ggplot(aes(y=reorder(skill_name, count),
+             x=count,
+             fill=factor(skill_type))) +
+  geom_bar(stat = "identity") +
+  # ggtitle("Skills categories") +
+  ylab("Skill category") + xlab('Resumes with skill') +
+  scale_fill_manual(name = "skill_type", values=c("coral3","deepskyblue3", "black")) + 
+  theme_classic() +
+  xlim(0, 60000) + 
+
+  theme(axis.text.y = element_text(size = 16),
+        axis.text.x = element_text(size = 14),
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        plot.title = element_text(size=20, face="bold", hjust=0.5),
+        legend.position= c(0.8, 0.2),
+        legend.title=element_blank(),
+        legend.text = element_text(size=14))
+p11
+
+```
+
+
+
+
+
+
